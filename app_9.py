@@ -12,8 +12,8 @@ import streamlit.components.v1 as _components
 _LS_PREFIX = "app_config_"
 _CFG_DEFAULTS = {
     "tmdb_api_key":          "",
-    "metas_films_pastebin":  "https://pastebin.com/raw/9iHzgXAW",
-    "megas_series_pastebin": "https://pastebin.com/raw/063xCRqW",
+    "metas_films_pastebin":  "",
+    "megas_series_pastebin": "",
 }
 
 def get_config(key: str) -> str:
@@ -349,9 +349,14 @@ def render_jw_top3_selector(top3_jw, jw_chosen_key, jw_radio_key):
     st.session_state[jw_chosen_key] = top3_jw[jw_labels.index(chosen)]["poster"] or ""
 
 def render_result_card(i, res, frun, prefix="ffr"):
-    icon = "✅" if res["id"] else "⚠️"
+    icon          = "✅" if res["id"] else "⚠️"
     name_original = res.get("name_original", "")
-    display_name = f"{res['name']}  _(original : {name_original})_" if name_original and name_original != res["name"] else res["name"]
+    display_name  = (
+        f"{res['name']}  _(original : {name_original})_"
+        if name_original and name_original != res["name"]
+        else res["name"]
+    )
+
     with st.expander(f"{icon} {display_name}"):
         name_key      = f"{prefix}_name_{frun}_{i}"
         id_key        = f"{prefix}_id_{frun}_{i}"
@@ -362,7 +367,7 @@ def render_result_card(i, res, frun, prefix="ffr"):
         jw_chosen_key = f"{prefix}_jw_chosen_{frun}_{i}"
 
         if name_key not in st.session_state:
-            st.session_state[name_key] = res.get("name_original") or res["name"]
+            st.session_state[name_key] = name_original or res["name"]
         if chosen_key not in st.session_state:
             st.session_state[chosen_key] = res.get("_chosen_id") or res["id"] or ""
         if id_key not in st.session_state:
@@ -370,144 +375,166 @@ def render_result_card(i, res, frun, prefix="ffr"):
         if jw_chosen_key not in st.session_state:
             st.session_state[jw_chosen_key] = res.get("_jw_chosen") or res.get("poster") or ""
 
-        # Affichage nom original vs nom reformaté
-        name_original = res.get("name_original", "")
+        # Titre original / reformaté
         if name_original and name_original != res["name"]:
             col_orig, col_fmt = st.columns(2)
             with col_orig:
                 st.markdown("**Titre original**")
                 st.info(name_original)
             with col_fmt:
-                st.markdown("**Titre reformaté (utilisé pour la recherche)**")
+                st.markdown("**Titre reformaté (recherche)**")
                 st.success(res["name"])
+
         st.text_input("Nom du film", key=name_key)
 
-        # ── IMDb ─────────────────────────────────────────────────────────
+        # IMDb
         top3 = res.get("top3", [])
         col_radio, col_verify = st.columns([2, 1.5])
-        with col_radio:
-            render_top3_selector(top3, chosen_key, radio_key)
-            # Sync chosen_key → id_key uniquement si pas édité manuellement
-            chosen_val = st.session_state.get(chosen_key) or ""
-            if chosen_val and st.session_state.get(id_key, "") == (res["id"] or ""):
-                st.session_state[id_key] = chosen_val
 
-        # Champ ID IMDb modifiable — persistant via sa propre clé session
-        edited_id = st.text_input(
-            "ID IMDb (modifiable)",
-            key=id_key,
-            help="Modifiez directement l'ID IMDb si le résultat est incorrect. Le préfixe tt sera ajouté automatiquement."
-        )
-        # Assure préfixe tt
-        if edited_id and not edited_id.startswith("tt"):
-            st.session_state[id_key] = f"tt{edited_id}"
+        with col_radio:
+            if top3:
+                st.markdown(
+                    "<p style='color:#94a3b8;font-size:0.82rem;margin:0 0 0.3rem 0;'>"
+                    "🔎 Sélectionner le bon résultat IMDb :</p>",
+                    unsafe_allow_html=True
+                )
+                img_cols = st.columns(len(top3))
+                for j, r in enumerate(top3):
+                    with img_cols[j]:
+                        if r["img"]:
+                            st.image(r["img"], width=70)
+                        st.caption(f"`{r['id']}`")
+                radio_labels   = [f"{r['title']} ({r['year']})" if r["year"] else r["title"] for r in top3]
+                current_chosen = st.session_state.get(chosen_key, top3[0]["id"])
+                default_idx    = next((j for j, r in enumerate(top3) if r["id"] == current_chosen), 0)
+                chosen_label   = st.radio(
+                    "##imdb", radio_labels, index=default_idx,
+                    key=radio_key, horizontal=False, label_visibility="collapsed"
+                )
+                selected_id = top3[radio_labels.index(chosen_label)]["id"]
+                if st.session_state.get(chosen_key) != selected_id:
+                    st.session_state[chosen_key] = selected_id
+                    st.session_state[id_key]     = selected_id
+
+            edited_id = st.text_input(
+                "ID IMDb (modifiable)", key=id_key,
+                help="Modifiable manuellement. Le préfixe tt sera ajouté automatiquement."
+            )
+            if edited_id and not edited_id.startswith("tt"):
+                st.session_state[id_key] = f"tt{edited_id}"
+
         effective_id = st.session_state.get(id_key) or ""
 
         with col_verify:
-            st.markdown("<p style='color:#94a3b8; font-size:0.85rem; margin:0 0 0.4rem 0;'>🎬 Vérification poster IMDb</p>", unsafe_allow_html=True)
+            st.markdown(
+                "<p style='color:#94a3b8;font-size:0.85rem;margin:0 0 0.4rem 0;'>"
+                "🎬 Vérification poster IMDb</p>",
+                unsafe_allow_html=True
+            )
             if effective_id:
                 st.image(f"https://live.metahub.space/poster/small/{effective_id}/img", width=150)
-                st.markdown(f'<a href="https://www.imdb.com/fr/title/{effective_id}/" target="_blank">🔍 IMDb page</a>', unsafe_allow_html=True)
+                st.markdown(
+                    f'<a href="https://www.imdb.com/fr/title/{effective_id}/" target="_blank">🔍 IMDb page</a>',
+                    unsafe_allow_html=True
+                )
             else:
-                # Pas d'ID : lien de recherche IMDb quand même
                 nom_val = st.session_state.get(name_key) or res["name"]
-                imdb_search_url = f"https://www.imdb.com/fr/find/?q={quote(nom_val)}"
-                st.markdown(f'<a href="{imdb_search_url}" target="_blank">🔍 Rechercher sur IMDb</a>', unsafe_allow_html=True)
+                st.markdown(
+                    f'<a href="https://www.imdb.com/fr/find/?q={quote(nom_val)}" target="_blank">🔍 Rechercher sur IMDb</a>',
+                    unsafe_allow_html=True
+                )
                 st.info("Saisissez un ID IMDb ci-dessus pour activer le poster.")
 
-        st.markdown("<hr style='border-color:#2d2d5e; margin:0.8rem 0;'>", unsafe_allow_html=True)
+        st.markdown("<hr style='border-color:#2d2d5e;margin:0.8rem 0;'>", unsafe_allow_html=True)
 
-        # ── JustWatch ────────────────────────────────────────────────────
+        # JustWatch
         top3_jw = res.get("top3_jw", [])
         col_jw_radio, col_jw_img = st.columns([2, 1.5])
         with col_jw_radio:
-            st.markdown("<p style='color:#94a3b8; font-size:0.85rem; margin:0 0 0.3rem 0;'>🎬 JustWatch</p>", unsafe_allow_html=True)
+            st.markdown(
+                "<p style='color:#94a3b8;font-size:0.85rem;margin:0 0 0.3rem 0;'>🎬 JustWatch</p>",
+                unsafe_allow_html=True
+            )
             render_jw_top3_selector(top3_jw, jw_chosen_key, jw_radio_key)
+
         effective_poster = st.session_state.get(jw_chosen_key) or ""
         if poster_key not in st.session_state or st.session_state[poster_key] != effective_poster:
             st.session_state[poster_key] = effective_poster
+
         with col_jw_img:
-            st.markdown("<p style='color:#94a3b8; font-size:0.85rem; margin:0 0 0.4rem 0;'>Poster JustWatch</p>", unsafe_allow_html=True)
+            st.markdown(
+                "<p style='color:#94a3b8;font-size:0.85rem;margin:0 0 0.4rem 0;'>Poster JustWatch</p>",
+                unsafe_allow_html=True
+            )
             if effective_poster:
                 st.image(effective_poster, width=120)
             else:
                 st.info("Pas de poster")
             nom_val = st.session_state.get(name_key) or res["name"]
-            jw_url = f"{BASE_JW_SEARCH}{quote(normalise_titre_plein(nom_val))}"
-            st.markdown(f'<a href="{jw_url}" target="_blank">🔍 JustWatch recherche</a>', unsafe_allow_html=True)
+            jw_url  = f"{BASE_JW_SEARCH}{quote(normalise_titre_plein(nom_val))}"
+            st.markdown(
+                f'<a href="{jw_url}" target="_blank">🔍 JustWatch recherche</a>',
+                unsafe_allow_html=True
+            )
         st.text_input("URL Poster JustWatch", key=poster_key)
 
-        st.markdown("<hr style='border-color:#2d2d5e; margin:0.8rem 0;'>", unsafe_allow_html=True)
+        st.markdown("<hr style='border-color:#2d2d5e;margin:0.8rem 0;'>", unsafe_allow_html=True)
 
-        imdb_id_val = st.session_state.get(id_key) or ""
-        poster_val  = st.session_state.get(poster_key) or ""
+        # Preview meta
+        imdb_id_val  = st.session_state.get(id_key) or ""
+        poster_val   = st.session_state.get(poster_key) or ""
         meta_preview = {
-            "id": imdb_id_val,
-            "name": st.session_state.get(name_key) or res["name"],
+            "id":     imdb_id_val,
+            "name":   st.session_state.get(name_key) or (name_original or res["name"]),
             "poster": poster_val or (f"https://live.metahub.space/poster/small/{imdb_id_val}/img" if imdb_id_val else "")
         }
         st.code(json.dumps(meta_preview, indent=2, ensure_ascii=False) + ",", language="json")
 
         compile_key = f"{prefix}_compile_{frun}_{i}"
         delete_key  = f"{prefix}_delete_{frun}_{i}"
-
         col_compile, col_delete = st.columns(2)
+
         with col_compile:
-            # Compiler toujours possible (même sans ID)
             if st.button("📋 Compiler ce meta", key=compile_key, use_container_width=True):
                 ids_existants = [m["id"] for m in st.session_state.compiled_metas]
                 if meta_preview["id"] not in ids_existants:
                     st.session_state.compiled_metas.append(meta_preview)
                 st.rerun()
+
         with col_delete:
             if st.button("🗑️ Supprimer", key=delete_key, use_container_width=True):
-                results_key = "v2_results" if prefix == "v2" else "ffr_results"
+                results_key  = "v2_results" if prefix == "v2" else "ffr_results"
                 results_list = st.session_state[results_key]
-                n = len(results_list)
-                run = frun
-                # Récupère les valeurs éditées depuis session_state AVANT suppression
-                # et les réinjecte dans les objets res[] des éléments suivants
-                sub_keys = [
-                    ("name",      f"{prefix}_name_{{run}}_{{j}}"),
-                    ("id",        f"{prefix}_id_{{run}}_{{j}}"),
-                    ("poster",    f"{prefix}_poster_{{run}}_{{j}}"),
-                    ("chosen_id", f"{prefix}_chosen_id_{{run}}_{{j}}"),
-                    ("jw_chosen", f"{prefix}_jw_chosen_{{run}}_{{j}}"),
-                ]
+                n, run       = len(results_list), frun
                 for j in range(i + 1, n):
-                    res_j = results_list[j]
-                    # Sauvegarde les valeurs éditées dans l'objet res
-                    k_name = f"{prefix}_name_{run}_{j}"
-                    k_id   = f"{prefix}_id_{run}_{j}"
-                    k_post = f"{prefix}_poster_{run}_{j}"
-                    k_chid = f"{prefix}_chosen_id_{run}_{j}"
-                    k_jwch = f"{prefix}_jw_chosen_{run}_{j}"
-                    if k_name in st.session_state: res_j["name_original"] = st.session_state[k_name]
-                    if k_id   in st.session_state: res_j["id"]            = st.session_state[k_id]
-                    if k_post in st.session_state: res_j["poster"]        = st.session_state[k_post]
-                    if k_chid in st.session_state: res_j["_chosen_id"]    = st.session_state[k_chid]
-                    if k_jwch in st.session_state: res_j["_jw_chosen"]    = st.session_state[k_jwch]
-                # Supprimer toutes les clés session_state liées à ce run
-                # pour forcer leur réinitialisation depuis res[] au prochain rerun
-                all_sub = ["name", "id", "poster", "chosen_id", "jw_chosen",
-                           "top3_radio", "top3_radio", "jw_radio"]
+                    res_j   = results_list[j]
+                    mapping = {
+                        "name_original": f"{prefix}_name_{run}_{j}",
+                        "id":            f"{prefix}_id_{run}_{j}",
+                        "poster":        f"{prefix}_poster_{run}_{j}",
+                        "_chosen_id":    f"{prefix}_chosen_id_{run}_{j}",
+                        "_jw_chosen":    f"{prefix}_jw_chosen_{run}_{j}",
+                    }
+                    for field, k in mapping.items():
+                        if k in st.session_state:
+                            res_j[field] = st.session_state[k]
                 for j in range(n):
-                    for sk in all_sub:
-                        for suffix in ["", "_widget"]:
-                            k = f"{prefix}_{sk}_{run}_{j}{suffix}"
-                            if k in st.session_state:
-                                del st.session_state[k]
-                # Supprimer l'élément de la liste
+                    for sk in ["name", "id", "poster", "chosen_id", "jw_chosen", "top3_radio", "jw_radio"]:
+                        k = f"{prefix}_{sk}_{run}_{j}"
+                        if k in st.session_state:
+                            del st.session_state[k]
                 results_list.pop(i)
                 st.rerun()
-        st.markdown(f"""
+
+        st.markdown("""
         <style>
-        div[data-testid="stColumns"] > div:nth-child(2) > div[data-testid="stButton"]:has(button[kind="secondary"]) button {{
+        div[data-testid="stColumns"] > div:nth-child(2) > div[data-testid="stButton"]:has(button[kind="secondary"]) button {
             background: linear-gradient(135deg, #dc2626, #b91c1c) !important;
             color: white !important;
-        }}
+        }
         </style>
         """, unsafe_allow_html=True)
+
 
 def render_compiled_metas(vider_key):
     if st.session_state.compiled_metas:
@@ -741,158 +768,21 @@ div[data-testid="stCodeBlock"] pre {
 # SIDEBAR NAVIGATION
 # ══════════════════════════════════════════════════════════════════════════
 
-render_config_sidebar()
-
 with st.sidebar:
     st.markdown("<h2 style='text-align:center; margin-bottom:1.5rem;'>🎬 MetaBuilder</h2>", unsafe_allow_html=True)
     page = st.radio(
         "Navigation",
-        ["Ajout manuel", "Ajout manuel v2", "Ajout depuis FilmFR"],
+        ["Ajout manuel v2", "Ajout depuis FilmFR"],
         label_visibility="collapsed"
     )
 
-# ══════════════════════════════════════════════════════════════════════════
-# PAGE : Ajout manuel
-# ══════════════════════════════════════════════════════════════════════════
-
-if page == "Ajout manuel":
-    st.markdown("<h1>✏️ Ajout manuel</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#94a3b8; margin-top:-0.5rem; margin-bottom:1.5rem;'>Recherche film par film avec contrôle complet</p>", unsafe_allow_html=True)
-
-    run = st.session_state.search_run_count
-    film_nom = st.text_input("🔎 Nom du film à ajouter", key=f"input_film_nom_{run}")
-    btn_col1, btn_col2, _ = st.columns([2, 1, 5])
-    with btn_col1:
-        lancer = st.button("Lancer la recherche", disabled=not film_nom)
-    with btn_col2:
-        st.link_button("🌐 FilmFR", "https://www.filmfr.com/accueil/")
-
-    enter_pressed = (
-        film_nom and
-        film_nom != st.session_state.last_searched_nom and
-        not lancer and
-        st.session_state.get("film_nom", "") != film_nom
-    )
-
-    if lancer or enter_pressed:
-        prev_run = st.session_state.search_run_count
-        reset_search()
-        st.session_state.search_run_count = prev_run + 1
-        st.session_state.last_searched_nom = film_nom
-        do_search(film_nom)
-        st.rerun()
-
-    if st.session_state.get("imdb_search_error"):
-        st.error("❌ IMDb ID non trouvé.")
-    if st.session_state.imdb_id:
-        st.success(f"✅ IMDb ID trouvé : **{st.session_state.imdb_id}**")
-    if st.session_state.get("imdb_page_title"):
-        st.info(f"🎬 **Titre TMDb** : {st.session_state.imdb_page_title}")
-
-    if st.session_state.imdb_id or st.session_state.poster_url:
-        st.markdown("---")
-        st.markdown("<h2>📝 Résultats modifiables</h2>", unsafe_allow_html=True)
-
-        nom_key       = f"nom_edit_{run}"
-        id_key        = f"imdb_edit_{run}"
-        poster_key    = f"poster_edit_{run}"
-        chosen_key    = f"manual_chosen_id_{run}"
-        jw_chosen_key = f"manual_jw_chosen_{run}"
-        jw_radio_key  = f"manual_jw_radio_{run}"
-        radio_key     = f"manual_top3_radio_{run}"
-
-        if nom_key not in st.session_state:
-            st.session_state[nom_key] = st.session_state.get("film_nom", "")
-        if chosen_key not in st.session_state:
-            st.session_state[chosen_key] = st.session_state.imdb_id
-        if id_key not in st.session_state:
-            st.session_state[id_key] = st.session_state.imdb_id
-        if jw_chosen_key not in st.session_state:
-            st.session_state[jw_chosen_key] = st.session_state.poster_url or ""
-
-        st.text_input("Nom du film", key=nom_key)
-
-        top3 = st.session_state.get("imdb_top3", [])
-        col_radio, col_verify = st.columns([2, 1.5])
-        with col_radio:
-            render_top3_selector(top3, chosen_key, radio_key)
-            chosen_val = st.session_state.get(chosen_key) or ""
-            if chosen_val and st.session_state.get(id_key) == st.session_state.imdb_id:
-                st.session_state[id_key] = chosen_val
-
-        # ID IMDb modifiable et persistant
-        edited_id = st.text_input(
-            "ID IMDb (modifiable)",
-            key=id_key,
-            help="Modifiez directement l'ID IMDb. Le préfixe tt sera ajouté automatiquement."
-        )
-        if edited_id and not edited_id.startswith("tt"):
-            st.session_state[id_key] = f"tt{edited_id}"
-        effective_id = st.session_state.get(id_key) or ""
-
-        with col_verify:
-            st.markdown("<p style='color:#94a3b8; font-size:0.85rem; margin:0 0 0.4rem 0;'>🎬 Vérification poster IMDb</p>", unsafe_allow_html=True)
-            if effective_id:
-                st.image(f"https://live.metahub.space/poster/small/{effective_id}/img", width=150)
-                st.markdown(f'<a href="https://www.imdb.com/fr/title/{effective_id}" target="_blank">🔍 IMDb page</a>', unsafe_allow_html=True)
-            else:
-                nom_val = st.session_state.get(nom_key) or ""
-                imdb_search_url = f"https://www.imdb.com/fr/find/?q={quote(nom_val)}"
-                st.markdown(f'<a href="{imdb_search_url}" target="_blank">🔍 Rechercher sur IMDb</a>', unsafe_allow_html=True)
-
-        st.markdown("<hr style='border-color:#2d2d5e; margin:0.8rem 0;'>", unsafe_allow_html=True)
-
-        top3_jw = st.session_state.get("jw_top3", [])
-        col_jw_radio, col_jw_img = st.columns([2, 1.5])
-        with col_jw_radio:
-            st.markdown("<p style='color:#94a3b8; font-size:0.85rem; margin:0 0 0.3rem 0;'>🎬 JustWatch</p>", unsafe_allow_html=True)
-            render_jw_top3_selector(top3_jw, jw_chosen_key, jw_radio_key)
-        effective_poster = st.session_state.get(jw_chosen_key) or ""
-        if poster_key not in st.session_state or st.session_state[poster_key] != effective_poster:
-            st.session_state[poster_key] = effective_poster
-        with col_jw_img:
-            st.markdown("<p style='color:#94a3b8; font-size:0.85rem; margin:0 0 0.4rem 0;'>Poster JustWatch</p>", unsafe_allow_html=True)
-            if effective_poster:
-                st.image(effective_poster, width=120)
-            else:
-                st.info("Pas de poster")
-            nom_val = st.session_state.get(nom_key) or ""
-            jw_url = f"{BASE_JW_SEARCH}{quote(normalise_titre_plein(nom_val))}"
-            st.markdown(f'<a href="{jw_url}" target="_blank">🔍 JustWatch recherche</a>', unsafe_allow_html=True)
-        st.text_input("URL Poster JustWatch", key=poster_key)
-
-        st.markdown("<hr style='border-color:#2d2d5e; margin:0.8rem 0;'>", unsafe_allow_html=True)
-
-        imdb_final   = st.session_state.get(id_key) or ""
-        poster_final = st.session_state.get(poster_key) or (f"https://live.metahub.space/poster/small/{imdb_final}/img" if imdb_final else "")
-        meta_courant = {
-            "id": imdb_final,
-            "name": st.session_state.get(nom_key) or "",
-            "poster": poster_final
-        }
-        st.markdown("**📄 Meta courant**")
-        st.code(json.dumps(meta_courant, indent=2, ensure_ascii=False) + ",", language="json")
-
-        st.markdown("---")
-        col_compile, col_pb, _ = st.columns([2, 1.5, 5])
-        with col_compile:
-            compiler = st.button("📋 Compiler ce meta")
-        with col_pb:
-            st.link_button("📎 Pastebin", "https://pastebin.com")
-
-        if compiler:
-            ids_existants = [m["id"] for m in st.session_state.compiled_metas]
-            if meta_courant["id"] not in ids_existants:
-                st.session_state.compiled_metas.append(dict(meta_courant))
-            st.rerun()
-
-        render_compiled_metas("vider_manuel")
+render_config_sidebar()
 
 # ══════════════════════════════════════════════════════════════════════════
 # PAGE : Ajout manuel v2
 # ══════════════════════════════════════════════════════════════════════════
 
-elif page == "Ajout manuel v2":
+if page == "Ajout manuel v2":
     st.markdown("<h1>✏️ Ajout manuel v2</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color:#94a3b8; margin-top:-0.5rem; margin-bottom:1.5rem;'>Recherche en batch — un titre par ligne</p>", unsafe_allow_html=True)
 
