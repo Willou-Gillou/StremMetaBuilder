@@ -1,4 +1,5 @@
 import streamlit as st
+st.set_page_config(page_title="Sorites FR 2.01", page_icon="logo.jpeg")
 import requests
 from bs4 import BeautifulSoup
 import re
@@ -769,21 +770,21 @@ div[data-testid="stCodeBlock"] pre {
 # ══════════════════════════════════════════════════════════════════════════
 
 with st.sidebar:
-    st.markdown("<h2 style='text-align:center; margin-bottom:1.5rem;'>🎬 MetaBuilder</h2>", unsafe_allow_html=True)
+    st.image("logo.jpeg", use_container_width=True)
     page = st.radio(
         "Navigation",
-        ["Ajout manuel v2", "Ajout depuis FilmFR"],
+        ["Ajout manuel multiple", "Ajout depuis FilmFR"],
         label_visibility="collapsed"
     )
 
 render_config_sidebar()
 
 # ══════════════════════════════════════════════════════════════════════════
-# PAGE : Ajout manuel v2
+# PAGE : Ajout manuel multiple
 # ══════════════════════════════════════════════════════════════════════════
 
-if page == "Ajout manuel v2":
-    st.markdown("<h1>✏️ Ajout manuel v2</h1>", unsafe_allow_html=True)
+if page == "Ajout manuel multiple":
+    st.markdown("<h1>✏️ Ajout manuel multiple</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color:#94a3b8; margin-top:-0.5rem; margin-bottom:1.5rem;'>Recherche en batch — un titre par ligne</p>", unsafe_allow_html=True)
 
     v2run = st.session_state.v2_run_count
