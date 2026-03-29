@@ -771,7 +771,7 @@ div[data-testid="stCodeBlock"] pre {
 
 with st.sidebar:
     chemin_logo = os.path.join(os.path.dirname(__file__), "logo.jpeg")
-    st.image(chemin_logo, use_container_width=True)
+    st.image(chemin_logo, width="stretch")
     page = st.radio(
         "Navigation",
         ["Ajout manuel multiple", "Ajout depuis FilmFR"],
