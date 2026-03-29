@@ -7,7 +7,7 @@ import json
 import time
 from urllib.parse import quote
 import streamlit.components.v1 as _components
-
+import os
 
 # ── Configuration persistante via localStorage ────────────────────────────
 _LS_PREFIX = "app_config_"
@@ -770,7 +770,6 @@ div[data-testid="stCodeBlock"] pre {
 # ══════════════════════════════════════════════════════════════════════════
 
 with st.sidebar:
-    import os
     chemin_logo = os.path.join(os.path.dirname(__file__), "logo.jpeg")
     st.image(chemin_logo, use_container_width=True)
     page = st.radio(
