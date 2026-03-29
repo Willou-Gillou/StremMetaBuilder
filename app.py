@@ -770,7 +770,9 @@ div[data-testid="stCodeBlock"] pre {
 # ══════════════════════════════════════════════════════════════════════════
 
 with st.sidebar:
-    st.image("logo.jpeg", use_container_width=True)
+    import os
+    chemin_logo = os.path.join(os.path.dirname(__file__), "logo.jpeg")
+    st.image(chemin_logo, use_container_width=True)
     page = st.radio(
         "Navigation",
         ["Ajout manuel multiple", "Ajout depuis FilmFR"],
