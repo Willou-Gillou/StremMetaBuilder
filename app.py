@@ -1,5 +1,5 @@
 import streamlit as st
-st.set_page_config(page_title="Sorties FR 2.02", page_icon="logo.jpeg")
+st.set_page_config(page_title="Sorties FR 2.03", page_icon="logo.jpeg")
 import requests
 from bs4 import BeautifulSoup
 import re
@@ -19,16 +19,9 @@ _CFG_DEFAULTS = {
 }
 
 def get_config(key: str) -> str:
-    # Attempt to read from session state first to avoid flickering
-    if f"cfg_{key}" in st.session_state:
-        return st.session_state[f"cfg_{key}"]
+    # Lecture pure en RAM (instantané), le LocalStorage n'est interrogé qu'une fois dans la sidebar
+    return st.session_state.get(f"cfg_{key}", _CFG_DEFAULTS.get(key, ""))
 
-    # Otherwise read from local storage
-    val = localS.getItem(key)
-    if val and isinstance(val, str):
-        st.session_state[f"cfg_{key}"] = val
-        return val
-    return _CFG_DEFAULTS.get(key, "")
 
 def render_config_sidebar():
     """Panneau ⚙️ Configuration dans la sidebar — persiste dans localStorage."""
@@ -42,6 +35,18 @@ def render_config_sidebar():
                 ("metas_films_pastebin", "🎬 Pastebin Films (URL raw)", "default", "URL raw Pastebin pour les métas films"),
                 ("megas_series_pastebin", "📺 Pastebin Séries (URL raw)","default", "URL raw Pastebin pour les mégas séries"),
             ]
+            # Synchronisation initiale depuis le Local Storage
+            if "ls_synced" not in st.session_state:
+                synced_all = True
+                for key in _CFG_DEFAULTS:
+                    val = localS.getItem(key)
+                    if val is not None:
+                        st.session_state[f"cfg_{key}"] = val
+                    else:
+                        synced_all = False
+                if synced_all:
+                    st.session_state["ls_synced"] = True
+
             for key, label, input_type, help_txt in fields:
                 session_key = f"cfg_{key}"
                 widget_key = f"widget_{key}"
@@ -78,6 +83,7 @@ headers = {
 
 # ── TMDb helpers ────────────────────────────────────────────────────────────
 
+@st.cache_data(ttl=86400, show_spinner=False)
 def tmdb_search_top3(titre):
     """Recherche TMDb par titre, retourne les 3 premiers résultats avec imdb_id."""
     try:
@@ -116,6 +122,7 @@ def tmdb_search_top3(titre):
     except Exception:
         return []
 
+@st.cache_data(ttl=86400, show_spinner=False)
 def tmdb_get_title(imdb_id):
     """Récupère le titre depuis TMDb via imdbID."""
     try:
@@ -170,6 +177,7 @@ def normalize_jw_poster_url(raw_url):
         return f"{BASE_JW_IMAGE}/poster/{m.group(1)}/s332/img"
     return None
 
+@st.cache_data(ttl=86400, show_spinner=False)
 def scraper_justwatch_top3(titre_plein):
     titre_normalise = normalise_titre_plein(titre_plein)
     url = f"{BASE_JW_SEARCH}{quote(titre_normalise)}"
