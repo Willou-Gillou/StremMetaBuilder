@@ -1,5 +1,5 @@
 import streamlit as st
-st.set_page_config(page_title="Sorites FR 3.07", page_icon="logo.jpeg")
+st.set_page_config(page_title="Sorites FR 3.08", page_icon="logo.jpeg")
 import os
 from streamlit_local_storage import LocalStorage
 localS = LocalStorage()
@@ -411,12 +411,12 @@ def render_result_card(i, res, frun, prefix="ffr"):
 
         st.markdown("<hr style='border-color:#2d2d5e;margin:0.8rem 0;'>", unsafe_allow_html=True)
 
-        # JustWatch
+        # Sélection Poster
         top3_jw = res.get("top3_jw", [])
         col_jw_radio, col_jw_img = st.columns([2, 1.5])
         with col_jw_radio:
             st.markdown(
-                "<p style='color:#94a3b8;font-size:0.85rem;margin:0 0 0.3rem 0;'>🎬 JustWatch</p>",
+                "<p style='color:#94a3b8;font-size:0.85rem;margin:0 0 0.3rem 0;'>🎬 Sélection du poster FR</p>",
                 unsafe_allow_html=True
             )
             render_jw_top3_selector(top3_jw, jw_chosen_key, jw_radio_key)
@@ -427,20 +427,24 @@ def render_result_card(i, res, frun, prefix="ffr"):
 
         with col_jw_img:
             st.markdown(
-                "<p style='color:#94a3b8;font-size:0.85rem;margin:0 0 0.4rem 0;'>Poster JustWatch</p>",
+                "<p style='color:#94a3b8;font-size:0.85rem;margin:0 0 0.4rem 0;'>Aperçu du poster</p>",
                 unsafe_allow_html=True
             )
             if effective_poster:
                 st.image(effective_poster, width=120)
+                if "justwatch.com" in effective_poster:
+                    st.caption("ℹ️ Origine : JustWatch (Fallback)")
+                elif "tmdb.org" in effective_poster:
+                    st.caption("✅ Origine : TMDb (FR)")
             else:
                 st.info("Pas de poster")
             nom_val = st.session_state.get(name_key) or res["name"]
             jw_url  = f"{BASE_JW_SEARCH}{quote(normalise_titre_plein(nom_val))}"
             st.markdown(
-                f'<a href="{jw_url}" target="_blank">🔍 JustWatch recherche</a>',
+                f'<a href="{jw_url}" target="_blank">🔍 Chercher un autre poster</a>',
                 unsafe_allow_html=True
             )
-        st.text_input("URL Poster JustWatch", key=poster_key)
+        st.text_input("URL du Poster", key=poster_key)
 
         st.markdown("<hr style='border-color:#2d2d5e;margin:0.8rem 0;'>", unsafe_allow_html=True)
 
@@ -453,9 +457,10 @@ def render_result_card(i, res, frun, prefix="ffr"):
             "poster": poster_val or (f"https://live.metahub.space/poster/small/{imdb_id_val}/img" if imdb_id_val else "")
         }
 
-        rating_val = res.get("rating")
-        if rating_val:
-            meta_preview["rating"] = rating_val
+        # Determine the definitive rating dynamically based on the current imdb_id_val
+        final_rating = tmdb_get_rating_by_imdb_id(imdb_id_val) if imdb_id_val else ""
+        if final_rating:
+            meta_preview["rating"] = final_rating
 
         st.code(json.dumps(meta_preview, indent=2, ensure_ascii=False) + ",", language="json")
 
