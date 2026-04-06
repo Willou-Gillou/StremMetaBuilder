@@ -858,6 +858,10 @@ elif page in ["Ajout depuis FilmFR", "Ajout depuis FilmFR avancé"]:
                             def enrich(items):
                                 out = []
                                 for item in items:
+                                    # Fix: item might be a string (like a raw ID or name) if the parser failed, 
+                                    # or we need to ensure it's a dict before updating.
+                                    if not isinstance(item, dict):
+                                        continue
                                     new_item = dict(item)
                                     imdb_id = item.get("id") or item.get("imdb_id") or ""
                                     if imdb_id:
