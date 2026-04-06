@@ -1,5 +1,5 @@
 import streamlit as st
-st.set_page_config(page_title="Sorites FR 3.08", page_icon="logo.jpeg")
+st.set_page_config(page_title="Sorites FR 3.09", page_icon="logo.jpeg")
 import os
 from streamlit_local_storage import LocalStorage
 localS = LocalStorage()
@@ -136,21 +136,22 @@ def tmdb_get_title(imdb_id):
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def tmdb_get_rating_by_imdb_id(imdb_id):
+def get_imdb_rating_cinemeta(imdb_id):
     try:
         clean_id = imdb_id if imdb_id.startswith('tt') else f'tt{imdb_id}'
-        r = requests.get(
-            f"{TMDB_BASE}/find/{clean_id}",
-            params={"api_key": get_config("tmdb_api_key"), "external_source": "imdb_id", "language": "fr-FR"},
-            timeout=8,
-        )
-        data = r.json()
-        for res_type in ['movie_results', 'tv_results']:
-            results = data.get(res_type, [])
-            if results:
-                val = results[0].get('vote_average') or results[0].get('rating')
-                if val:
-                    return str(round(float(val), 1))
+        # Tester d'abord en tant que film
+        r = requests.get(f"https://v3-cinemeta.strem.io/meta/movie/{clean_id}.json", timeout=8)
+        if r.status_code == 200:
+            meta = r.json().get("meta", {})
+            if meta and meta.get("imdbRating"):
+                return str(meta.get("imdbRating"))
+
+        # Sinon, tester en tant que série
+        r = requests.get(f"https://v3-cinemeta.strem.io/meta/series/{clean_id}.json", timeout=8)
+        if r.status_code == 200:
+            meta = r.json().get("meta", {})
+            if meta and meta.get("imdbRating"):
+                return str(meta.get("imdbRating"))
     except: pass
     return ''
 
@@ -458,7 +459,7 @@ def render_result_card(i, res, frun, prefix="ffr"):
         }
 
         # Determine the definitive rating dynamically based on the current imdb_id_val
-        final_rating = tmdb_get_rating_by_imdb_id(imdb_id_val) if imdb_id_val else ""
+        final_rating = get_imdb_rating_cinemeta(imdb_id_val) if imdb_id_val else ""
         if final_rating:
             meta_preview["rating"] = final_rating
 
@@ -953,7 +954,7 @@ elif page in ["Ajout depuis FilmFR", "Ajout depuis FilmFR avancé"]:
                                 "top3": top3, "top3_jw": top3_jw
                             }
                             if imdb_id:
-                                rating = tmdb_get_rating_by_imdb_id(imdb_id)
+                                rating = get_imdb_rating_cinemeta(imdb_id)
                                 if rating:
                                     res_obj["rating"] = rating
                             results.append(res_obj)
@@ -1029,7 +1030,7 @@ elif page == "Ajout du rating":
                         new_item = dict(item)
                         imdb_id = item.get("imdb_id") or item.get("id") or ""
                         if imdb_id:
-                            new_item["rating"] = tmdb_get_rating_by_imdb_id(imdb_id)
+                            new_item["rating"] = get_imdb_rating_cinemeta(imdb_id)
                         enriched.append(new_item)
                         if total: progress.progress((i + 1) / total)
 
